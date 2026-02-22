@@ -72,7 +72,7 @@ DIP/
 ├── README.md                                  # This file
 ├── requirements.txt                           # Python dependencies
 │
-├── RetinalOCT_Dataset/                        # Dataset directory
+├── RetinalOCT_Dataset/                        # Dataset directory (not tracked in git)
 │   ├── train/                                 # Training images
 │   │   ├── CNV/
 │   │   ├── DME/
@@ -89,21 +89,18 @@ DIP/
 │       ├── DRUSEN/
 │       └── NORMAL/
 │
-├── EDA_Retinal.ipynb                          # Exploratory Data Analysis (augmentation-based)
-├── densenet_train_eda.ipynb                   # EDA + DenseNet121 training (undersampling-based)
-├── densenet121_retinalOCT.ipynb               # Main training notebook (two-phase transfer learning)
-├── final_model.ipynb                          # Final model training on full augmented dataset
-├── Model.ipynb                                # Initial from-scratch DenseNet121 attempt
-├── phase_metrics.ipynb                        # Phase-wise evaluation metrics
+├── 01_EDA.ipynb                               # Exploratory Data Analysis & augmentation
+├── 02_DenseNet_Transfer_Learning.ipynb        # Two-phase transfer learning (92.29% accuracy)
+├── 03_DenseNet_Balanced_Training.ipynb        # EDA + balanced training with undersampling (95.8% accuracy)
 │
-├── densenet121_retinalOCT_phase1_best.keras   # Best Phase 1 model checkpoint
-├── densenet121_retinalOCT_phase2_best.keras   # Best Phase 2 model checkpoint (final model)
 ├── test_results.json                          # Test set evaluation results
 │
-├── confusion_matrix.png                       # Test confusion matrix
-├── confusion_matrix_normalized.png            # Normalized confusion matrix
-├── phase1_training.png                        # Phase 1 training curves
-└── phase2_training.png                        # Phase 2 training curves
+├── densenet121_retinalOCT_phase1_best.keras   # Best Phase 1 model checkpoint (not tracked in git)
+├── densenet121_retinalOCT_phase2_best.keras   # Best Phase 2 model checkpoint (not tracked in git)
+├── confusion_matrix.png                       # Test confusion matrix (not tracked in git)
+├── confusion_matrix_normalized.png            # Normalized confusion matrix (not tracked in git)
+├── phase1_training.png                        # Phase 1 training curves (not tracked in git)
+└── phase2_training.png                        # Phase 2 training curves (not tracked in git)
 ```
 
 ---
@@ -148,7 +145,7 @@ Output: [CNV, DME, DRUSEN, NORMAL] probabilities
 
 ### Stage 1: Exploratory Data Analysis
 
-Performed in `EDA_Retinal.ipynb` and `densenet_train_eda.ipynb`:
+Performed in `01_EDA.ipynb` and `03_DenseNet_Balanced_Training.ipynb`:
 
 - Class distribution visualization (before and after balancing)
 - Image dimension analysis (scatter plots)
@@ -160,7 +157,7 @@ Performed in `EDA_Retinal.ipynb` and `densenet_train_eda.ipynb`:
 
 ### Stage 2: Two-Phase Transfer Learning
 
-Performed in `densenet121_retinalOCT.ipynb`:
+Performed in `02_DenseNet_Transfer_Learning.ipynb` and `03_DenseNet_Balanced_Training.ipynb`:
 
 #### Phase 1 — Feature Extraction (Frozen Base)
 
@@ -233,12 +230,12 @@ pillow
 
 1. Place the dataset in `RetinalOCT_Dataset/` with `train/`, `val/`, and `test/` subdirectories, each containing class folders (`CNV/`, `DME/`, `DRUSEN/`, `NORMAL/`).
 
-2. Open and run `densenet121_retinalOCT.ipynb` sequentially:
-   - Cells 1–6: Data loading and preprocessing
-   - Cells 7–9: Model definition and callbacks
-   - Cells 10–11: Phase 1 training (feature extraction)
-   - Cells 12–13: Phase 2 training (fine-tuning)
-   - Cells 14–18: Evaluation and results
+2. Open and run `02_DenseNet_Transfer_Learning.ipynb` or `03_DenseNet_Balanced_Training.ipynb` sequentially:
+   - Data loading and preprocessing
+   - Model definition and callbacks
+   - Phase 1 training (feature extraction)
+   - Phase 2 training (fine-tuning)
+   - Evaluation and results
 
 ### Evaluation Only
 
@@ -267,7 +264,23 @@ print(f"Predicted: {predicted_class} ({confidence:.2%})")
 
 ## Results
 
-### Overall Performance
+### Experiment Comparison
+
+| Notebook | Dataset | Balancing | Test Accuracy |
+|----------|---------|-----------|---------------|
+| `02_DenseNet_Transfer_Learning.ipynb` | RetinalOCT_Dataset (2,300/class) | Curated balanced subset | **92.29%** |
+| `03_DenseNet_Balanced_Training.ipynb` | OCT (8,616/class undersampled) | Undersampling | **95.80%** |
+
+### Best Model: `03_DenseNet_Balanced_Training.ipynb` — 95.8% Accuracy
+
+| Class | Total | Correct | Incorrect | Accuracy |
+|-------|-------|---------|-----------|----------|
+| CNV | 250 | 245 | 5 | 98.0% |
+| DME | 250 | 243 | 7 | 97.2% |
+| DRUSEN | 250 | 227 | 23 | 90.8% |
+| NORMAL | 250 | 243 | 7 | 97.2% |
+
+### Detailed Metrics: `02_DenseNet_Transfer_Learning.ipynb` — 92.29% Accuracy
 
 | Metric | Value |
 |--------|-------|
@@ -275,16 +288,16 @@ print(f"Predicted: {predicted_class} ({confidence:.2%})")
 | **Test Loss** | **0.2429** |
 | **Macro F1-Score** | **92.28%** |
 
-### Per-Class Performance
+#### Per-Class Performance
 
 | Class | Precision | Recall | F1-Score | Support |
-|-------|-----------|--------|----------|---------|
+|-------|-----------|--------|----------|--------|
 | CNV | 91.34% | 93.43% | 92.37% | 350 |
 | DME | 95.74% | 90.00% | 92.78% | 350 |
 | DRUSEN | 91.01% | 89.71% | 90.36% | 350 |
 | NORMAL | 91.30% | 96.00% | 93.59% | 350 |
 
-### Confusion Matrix
+#### Confusion Matrix
 
 |  | Predicted CNV | Predicted DME | Predicted DRUSEN | Predicted NORMAL |
 |--|:---:|:---:|:---:|:---:|
@@ -293,19 +306,12 @@ print(f"Predicted: {predicted_class} ({confidence:.2%})")
 | **Actual DRUSEN** | 18 | 4 | **314** | 14 |
 | **Actual NORMAL** | 0 | 4 | 10 | **336** |
 
-### Training Progression
+### Training Progression (02_DenseNet_Transfer_Learning)
 
 | Phase | Train Accuracy | Validation Accuracy | Epochs |
 |-------|---------------|-------------------|--------|
 | Phase 1 (frozen) | 72.65% | 79.14% | 25 |
 | Phase 2 (fine-tuned) | 95.28% | 92.21% | 14 (early stopped) |
-
-### Comparison: From-Scratch vs Transfer Learning
-
-| Approach | Train Acc | Val/Test Acc | Overfitting Gap |
-|----------|-----------|-------------|-----------------|
-| From-scratch (Model.ipynb) | 89.4% | 53.4% | **36%** |
-| Transfer learning (final) | 95.3% | **92.3%** | **3%** |
 
 ---
 
