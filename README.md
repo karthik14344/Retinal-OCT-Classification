@@ -41,11 +41,12 @@ The project uses the **Retinal OCT** dataset containing grayscale OCT scan image
 
 | Split | Total Images | Per Class |
 |-------|-------------|-----------|
-| **Train** | 9,200 | 2,300 |
-| **Validation** | 1,400 | 350 |
-| **Test** | 1,400 | 350 |
+| **Train (original)** | 108,309 | Imbalanced |
+| **Train (balanced)** | 34,464 | 8,616 |
+| **Validation** | 6,893 | ~1,723 (20% split from balanced train) |
+| **Test** | 1,000 | 250 |
 
-> **Note:** The original source dataset contained 108,309 training images with severe class imbalance (NORMAL: 51,140 vs DRUSEN: 8,616). A balanced subset was created for training.
+> **Note:** The original dataset had severe class imbalance (NORMAL: 51,140 vs DRUSEN: 8,616). Training data was balanced by undersampling each class to match the smallest class (DRUSEN: 8,616).
 
 ### Original Class Distribution (Before Balancing)
 
@@ -72,35 +73,23 @@ DIP/
 ├── README.md                                  # This file
 ├── requirements.txt                           # Python dependencies
 │
-├── RetinalOCT_Dataset/                        # Dataset directory (not tracked in git)
-│   ├── train/                                 # Training images
+├── OCT/                                       # Dataset directory (not tracked in git)
+│   ├── train/                                 # Training images (108,309 images)
 │   │   ├── CNV/
 │   │   ├── DME/
 │   │   ├── DRUSEN/
 │   │   └── NORMAL/
-│   ├── val/                                   # Validation images
-│   │   ├── CNV/
-│   │   ├── DME/
-│   │   ├── DRUSEN/
-│   │   └── NORMAL/
-│   └── test/                                  # Test images
+│   └── test/                                  # Test images (1,000 images)
 │       ├── CNV/
 │       ├── DME/
 │       ├── DRUSEN/
 │       └── NORMAL/
 │
 ├── 01_EDA.ipynb                               # Exploratory Data Analysis & augmentation
-├── 02_DenseNet_Transfer_Learning.ipynb        # Two-phase transfer learning (92.29% accuracy)
 ├── 03_DenseNet_Balanced_Training.ipynb        # EDA + balanced training with undersampling (95.8% accuracy)
 │
-├── test_results.json                          # Test set evaluation results
-│
-├── densenet121_retinalOCT_phase1_best.keras   # Best Phase 1 model checkpoint (not tracked in git)
-├── densenet121_retinalOCT_phase2_best.keras   # Best Phase 2 model checkpoint (not tracked in git)
-├── confusion_matrix.png                       # Test confusion matrix (not tracked in git)
-├── confusion_matrix_normalized.png            # Normalized confusion matrix (not tracked in git)
-├── phase1_training.png                        # Phase 1 training curves (not tracked in git)
-└── phase2_training.png                        # Phase 2 training curves (not tracked in git)
+├── densenet121_balanced_best.keras            # Best model checkpoint (not tracked in git)
+└── densenet121_balanced.keras                 # Final saved model (not tracked in git)
 ```
 
 ---
@@ -122,7 +111,7 @@ DenseNet121 Base (pretrained on ImageNet, 7,037,504 params)
 Global Average Pooling 2D
     │
     ▼
-Dropout (0.5)
+Dropout (0.4)
     │
     ▼
 Dense (4 units, softmax activation)
@@ -157,39 +146,37 @@ Performed in `01_EDA.ipynb` and `03_DenseNet_Balanced_Training.ipynb`:
 
 ### Stage 2: Two-Phase Transfer Learning
 
-Performed in `02_DenseNet_Transfer_Learning.ipynb` and `03_DenseNet_Balanced_Training.ipynb`:
+Performed in `03_DenseNet_Balanced_Training.ipynb`:
 
 #### Phase 1 — Feature Extraction (Frozen Base)
 
 - **Base model:** Frozen (non-trainable)
 - **Trainable params:** 4,100 (classifier head only)
-- **Optimizer:** Adam (lr=3e-4)
-- **Epochs:** 25
+- **Optimizer:** Adam (lr=1e-4)
+- **Epochs:** 20
 - **Purpose:** Train the classifier head to map DenseNet features to OCT classes
 
-#### Phase 2 — Fine-Tuning (Unfrozen Base)
+#### Phase 2 — Fine-Tuning (Partial Unfreeze)
 
-- **Base model:** Fully trainable
-- **Trainable params:** 7,041,604 (all layers)
+- **Base model:** Last 20 layers unfrozen
 - **Optimizer:** Adam (lr=1e-5, 10× lower than Phase 1)
-- **Epochs:** 25 (early stopped at epoch 14)
-- **Purpose:** Fine-tune the entire network for OCT-specific features
+- **Epochs:** 10
+- **Purpose:** Fine-tune upper layers for OCT-specific features
 
 ### Stage 3: Evaluation
 
-- Test set predictions with best Phase 2 checkpoint
+- Test set predictions with best model checkpoint
 - Classification report (precision, recall, F1-score per class)
-- Confusion matrix (absolute and normalized)
-- Results saved to `test_results.json`
+- Confusion matrix and ROC curves
+- Per-class accuracy summary
 
 ### Training Callbacks
 
 | Callback | Configuration |
 |----------|--------------|
-| **ModelCheckpoint** | Save best model based on `val_loss` |
-| **EarlyStopping** | Patience=6, restore best weights |
-| **ReduceLROnPlateau** | Factor=0.5, patience=3, min_lr=1e-6 (Phase 1) / 1e-7 (Phase 2) |
-| **PlotTraining** | Custom callback to save training curves after each epoch |
+| **ModelCheckpoint** | Save best model based on `val_accuracy` |
+| **EarlyStopping** | Patience=6, monitor `val_loss`, restore best weights |
+| **ReduceLROnPlateau** | Factor=0.5, patience=3, monitor `val_loss` |
 
 ---
 
@@ -228,9 +215,9 @@ pillow
 
 ### Training
 
-1. Place the dataset in `RetinalOCT_Dataset/` with `train/`, `val/`, and `test/` subdirectories, each containing class folders (`CNV/`, `DME/`, `DRUSEN/`, `NORMAL/`).
+1. Place the dataset in `OCT/` with `train/` and `test/` subdirectories, each containing class folders (`CNV/`, `DME/`, `DRUSEN/`, `NORMAL/`).
 
-2. Open and run `02_DenseNet_Transfer_Learning.ipynb` or `03_DenseNet_Balanced_Training.ipynb` sequentially:
+2. Open and run `03_DenseNet_Balanced_Training.ipynb` sequentially:
    - Data loading and preprocessing
    - Model definition and callbacks
    - Phase 1 training (feature extraction)
@@ -245,7 +232,7 @@ If you have a trained model checkpoint:
 from tensorflow import keras
 import numpy as np
 
-model = keras.models.load_model('densenet121_retinalOCT_phase2_best.keras')
+model = keras.models.load_model('densenet121_balanced_best.keras')
 
 # Predict on a single image
 img = keras.utils.load_img('path/to/image.jpeg', target_size=(224, 224))
@@ -264,14 +251,9 @@ print(f"Predicted: {predicted_class} ({confidence:.2%})")
 
 ## Results
 
-### Experiment Comparison
+### Test Accuracy: 95.8%
 
-| Notebook | Dataset | Balancing | Test Accuracy |
-|----------|---------|-----------|---------------|
-| `02_DenseNet_Transfer_Learning.ipynb` | RetinalOCT_Dataset (2,300/class) | Curated balanced subset | **92.29%** |
-| `03_DenseNet_Balanced_Training.ipynb` | OCT (8,616/class undersampled) | Undersampling | **95.80%** |
-
-### Best Model: `03_DenseNet_Balanced_Training.ipynb` — 95.8% Accuracy
+#### Per-Class Performance
 
 | Class | Total | Correct | Incorrect | Accuracy |
 |-------|-------|---------|-----------|----------|
@@ -280,38 +262,12 @@ print(f"Predicted: {predicted_class} ({confidence:.2%})")
 | DRUSEN | 250 | 227 | 23 | 90.8% |
 | NORMAL | 250 | 243 | 7 | 97.2% |
 
-### Detailed Metrics: `02_DenseNet_Transfer_Learning.ipynb` — 92.29% Accuracy
+#### Training Approach
 
-| Metric | Value |
-|--------|-------|
-| **Test Accuracy** | **92.29%** |
-| **Test Loss** | **0.2429** |
-| **Macro F1-Score** | **92.28%** |
-
-#### Per-Class Performance
-
-| Class | Precision | Recall | F1-Score | Support |
-|-------|-----------|--------|----------|--------|
-| CNV | 91.34% | 93.43% | 92.37% | 350 |
-| DME | 95.74% | 90.00% | 92.78% | 350 |
-| DRUSEN | 91.01% | 89.71% | 90.36% | 350 |
-| NORMAL | 91.30% | 96.00% | 93.59% | 350 |
-
-#### Confusion Matrix
-
-|  | Predicted CNV | Predicted DME | Predicted DRUSEN | Predicted NORMAL |
-|--|:---:|:---:|:---:|:---:|
-| **Actual CNV** | **327** | 6 | 16 | 1 |
-| **Actual DME** | 13 | **315** | 5 | 17 |
-| **Actual DRUSEN** | 18 | 4 | **314** | 14 |
-| **Actual NORMAL** | 0 | 4 | 10 | **336** |
-
-### Training Progression (02_DenseNet_Transfer_Learning)
-
-| Phase | Train Accuracy | Validation Accuracy | Epochs |
-|-------|---------------|-------------------|--------|
-| Phase 1 (frozen) | 72.65% | 79.14% | 25 |
-| Phase 2 (fine-tuned) | 95.28% | 92.21% | 14 (early stopped) |
+- **Balancing:** Undersampled all classes to 8,616 (matching smallest class DRUSEN)
+- **Phase 1 (frozen base):** 20 epochs with lr=1e-4
+- **Phase 2 (fine-tune last 20 layers):** 10 epochs with lr=1e-5
+- **Validation:** 20% stratified split from balanced training set
 
 ---
 
@@ -329,8 +285,8 @@ print(f"Predicted: {predicted_class} ({confidence:.2%})")
 
 **Approaches tried:**
 - Data augmentation (rotation, flips, zoom, contrast) — crashed on corrupt files
-- Undersampling to smallest class (8,616/class) — loses data
-- **Final approach:** Curated balanced subset (2,300/class) with class weights
+- Curated small balanced subset (2,300/class) — too little data, only 92.3% accuracy
+- **Final approach:** Undersampling to smallest class (8,616/class) — achieved 95.8% accuracy
 
 ### 3. Limited GPU Availability
 

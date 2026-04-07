@@ -47,8 +47,8 @@ Thumbs.db
 desktop.ini
 
 # Dataset (too large for GitHub)
-RetinalOCT_Dataset/
 OCT/
+RetinalOCT_Dataset/
 *.zip
 
 # Model checkpoints (too large for GitHub)
@@ -65,9 +65,9 @@ saved_model/
 *.jpg
 *.jpeg
 
-# Results (optional — remove these lines if you want to track results)
-# test_results.json
-# densenet121_train_per_class_summary.csv
+# Results
+densenet121_test_per_class_summary.csv
+densenet121_train_per_class_summary.csv
 
 # Logs
 *.log
